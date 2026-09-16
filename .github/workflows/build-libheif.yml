@@ -36,6 +36,7 @@ jobs:
       - run: npm ci
 
       - name: Build libheif.js
+        id: build
         run: npm run build:libheif
 
       - name: Build dist
@@ -48,7 +49,9 @@ jobs:
         if: github.event_name == 'pull_request'
         run: git diff --stat --exit-code -- src/lib dist
 
+      # Upload even when the match check fails, so a mismatch can be diffed.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         with:
           name: heic-to-libheif-${{ env.LIBHEIF_VERSION }}
           path: |
