@@ -5,6 +5,9 @@ set -euo pipefail
 
 export USE_TYPESCRIPT=0
 export CORES=$(nproc)
+# emcc's JS optimizer splits its output into one chunk per core, which changes
+# line breaks and function order. Pin it so every machine emits identical files.
+export EMCC_CORES=4
 
 # libde265 1.1.x is CMake-only, but libheif's build-emscripten.sh still drives
 # the old autotools layout. It skips its own libde265 step when
