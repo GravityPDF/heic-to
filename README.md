@@ -8,6 +8,7 @@ Currently, heic-to is using [libheif 1.23.4](https://github.com/strukturag/libhe
 
 | Release  | libheif  |
 | -------- | -------- |
+| 1.6.0-gpdf | 1.23.4 | 
 | 1.5.2    | 1.22.2   | 
 | 1.5.1    | 1.22.1   | 
 | 1.5.0    | 1.22.0   | 
