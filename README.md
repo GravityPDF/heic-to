@@ -154,4 +154,4 @@ node scripts/smoke-test.cjs
 
 The smoke test decodes libheif's own sample images with both builds and checks that the CSP bundles contain no `eval`/`new Function`. The same steps run in the **Build libheif** GitHub Actions workflow, which fails if the committed `src/lib` and `dist` files don't match a clean build of the pinned versions. Running it by hand with version overrides uploads the rebuilt files as an artifact instead.
 
-The **Check for libheif releases** workflow runs daily. When libheif or libde265 publishes a newer release, it rebuilds with it and opens a pull request if the smoke test passes, or an issue if the build fails.
+The **Check for libheif releases** workflow runs daily. When libheif or libde265 publishes a newer release, it rebuilds with it and opens a pull request if the smoke test passes, or an issue if the build fails. It posts both to Slack when the repository has a `SLACK_WEBHOOK_URL` secret.

@@ -5,6 +5,9 @@ name: Check for libheif releases
 # if the build fails. The PR is created with GITHUB_TOKEN, which doesn't trigger
 # pull_request workflows, so this dispatches Build libheif on the PR branch to
 # put the byte-match check on it.
+#
+# Posts to Slack when it opens a PR or fails. Without a SLACK_WEBHOOK_URL
+# repository secret those steps are skipped.
 on:
   schedule:
     - cron: '17 6 * * *'
@@ -25,6 +28,7 @@ jobs:
     timeout-minutes: 60
     env:
       GH_TOKEN: ${{ github.token }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -47,6 +51,7 @@ jobs:
           node scripts/smoke-test.cjs
 
       - name: Open pull request
+        id: pr
         if: steps.check.outputs.update == 'true'
         env:
           BRANCH: ${{ steps.check.outputs.branch }}
@@ -87,14 +92,56 @@ jobs:
             echo 'Before merging, read the release notes for JS binding or `build-emscripten.sh` changes. After merging: bump the version, tag it, and update the dependency in Image Hopper.'
           } > pr-body.md
 
-          gh pr create --base "$GITHUB_REF_NAME" --head "$BRANCH" --title "$TITLE" --body-file pr-body.md
+          url=$(gh pr create --base "$GITHUB_REF_NAME" --head "$BRANCH" --title "$TITLE" --body-file pr-body.md)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
           gh workflow run build-libheif.yml --ref "$BRANCH"
 
       - name: Report build failure
+        id: issue
         if: failure() && steps.build.outcome == 'failure'
         env:
           FAILURE_TITLE: ${{ steps.check.outputs.failure_title }}
         run: |
-          gh issue create --title "$FAILURE_TITLE" --body "The daily release check couldn't produce a working build: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          url=$(gh issue create --title "$FAILURE_TITLE" --body "The daily release check couldn't produce a working build: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
 
-          The check skips this version pair while this issue is open. Fix the build (upstream changes to \`build-emscripten.sh\` or the libde265 build are the usual cause), then close this issue so the next run retries."
+          The check skips this version pair while this issue is open. Fix the build (upstream changes to \`build-emscripten.sh\` or the libde265 build are the usual cause), then close this issue so the next run retries.")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack of the pull request
+        if: steps.pr.outputs.url != '' && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "heic-to: ${{ steps.check.outputs.title }}"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: |
+                    *heic-to: ${{ steps.check.outputs.title }}*
+
+                    libheif ${{ steps.check.outputs.previous_libheif }} → ${{ steps.check.outputs.libheif }}, libde265 ${{ steps.check.outputs.previous_libde265 }} → ${{ steps.check.outputs.libde265 }}. The smoke test passed; the byte-match check is running on the PR.
+
+                    <${{ steps.pr.outputs.url }}|Review the pull request>
+
+      # Silence has to mean "no new release", never "the check died".
+      - name: Notify Slack that the check failed
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "heic-to: libheif release check failed ❌"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: |
+                    *heic-to: libheif release check failed ❌*
+
+                    ${{ steps.issue.outputs.url != '' && format('{0}. <{1}|Issue opened>', steps.check.outputs.failure_title, steps.issue.outputs.url) || 'No issue was opened; see the run for what failed.' }}
+
+                    <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>
