@@ -22,6 +22,7 @@
   },
   "scripts": {
     "build": "node esbuild.mjs",
+    "build:libheif": "bash scripts/build-libheif.sh",
     "s": "npx http-server -o ./example"
   },
   "repository": {

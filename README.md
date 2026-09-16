@@ -4,7 +4,7 @@ Convert HEIC/HEIF images to JPEG, PNG in browser using Javascript.
 
 Inspired by [heic2any](https://github.com/alexcorvi/heic2any) and [libheif-web](https://github.com/joutvhu/libheif-web). The purpose of heic-to is to continuously follow up on releases of [libheif](https://github.com/strukturag/libheif) to be able to preview HEIC/HEIF images in browser.
 
-Currently, heic-to is using [libheif 1.22.2](https://github.com/strukturag/libheif/releases/tag/v1.22.2) under the hood. 
+Currently, heic-to is using [libheif 1.23.4](https://github.com/strukturag/libheif/releases/tag/v1.23.4) and [libde265 1.1.3](https://github.com/strukturag/libde265/releases/tag/v1.1.3) under the hood. 
 
 | Release  | libheif  |
 | -------- | -------- |
@@ -139,28 +139,14 @@ yarn s
 
 This will open `http://127.0.0.1:8080/example/` for easy testing.
 
-#### How to build libheif.js from [libheif](https://github.com/strukturag/libheif) on Mac
+#### How to build libheif.js from [libheif](https://github.com/strukturag/libheif)
+
+`src/lib/libheif.js` and `src/lib/libheif-without-unsafe-eval.js` are built from source inside the [`emscripten/emsdk`](https://hub.docker.com/r/emscripten/emsdk) Docker image, so the only requirements are Docker and Node.
 
 ```bash
-brew install cmake make pkg-config x265 libde265 libjpeg libtool
-brew install emscripten
-
-git clone git@github.com:strukturag/libheif.git
+LIBHEIF_VERSION=1.23.4 LIBDE265_VERSION=1.1.3 npm run build:libheif
+npm run build
+node scripts/smoke-test.cjs tmp/libheif-build/libheif-1.23.4
 ```
 
-Did below changes from `build-emscripten.sh`
-```diff
-# EXPORTED_FUNCTIONS=$($EMSDK/upstream/bin/llvm-nm $LIBHEIFA --format=just-symbols | grep "^heif_\|^de265_\|^aom_" | grep "[^:]$" | sed 's/^/_/' | paste -sd "," -)
-EXPORTED_FUNCTIONS=$(/opt/homebrew/opt/llvm/bin/llvm-nm $LIBHEIFA --format=just-symbols | grep "^heif_\|^de265_\|^aom_" | grep "[^:]$" | sed 's/^/_/' | paste -sd "," -)
-```
-
-Start building
-```bash
-cd libheif
-mkdir buildjs
-cd buildjs
-LIBDE265_VERSION=1.0.16 USE_WASM=0 ../build-emscripten.sh ..
-
-# Or build without unsafe-eval
-LIBDE265_VERSION=1.0.16 USE_UNSAFE_EVAL=0 USE_WASM=0 ../build-emscripten.sh ..
-```
+The smoke test decodes libheif's own sample images with both builds and checks that the CSP bundles contain no `eval`/`new Function`. The same steps run in the **Build libheif** GitHub Actions workflow: pull requests fail if the committed `src/lib` and `dist` files don't match a clean build, and running the workflow by hand with new versions uploads the rebuilt files as an artifact.
