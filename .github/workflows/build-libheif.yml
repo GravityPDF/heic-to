@@ -1,0 +1,56 @@
+name: Build libheif
+
+# Pull requests rebuild libheif from source and fail if the committed src/lib
+# and dist files don't match, so every release is traceable to its sources.
+# Run it by hand with new versions to produce the files for an upgrade PR.
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      libheif_version:
+        description: libheif version (no leading v)
+        default: 1.23.4
+      libde265_version:
+        description: libde265 version (no leading v)
+        default: 1.1.3
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      LIBHEIF_VERSION: ${{ inputs.libheif_version || '1.23.4' }}
+      LIBDE265_VERSION: ${{ inputs.libde265_version || '1.1.3' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .tool-versions
+
+      - run: npm ci
+
+      - name: Build libheif.js
+        run: npm run build:libheif
+
+      - name: Build dist
+        run: npm run build
+
+      - name: Smoke test
+        run: node scripts/smoke-test.cjs "tmp/libheif-build/libheif-$LIBHEIF_VERSION"
+
+      - name: Committed files match the source build
+        if: github.event_name == 'pull_request'
+        run: git diff --stat --exit-code -- src/lib dist
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: heic-to-libheif-${{ env.LIBHEIF_VERSION }}
+          path: |
+            src/lib
+            dist
