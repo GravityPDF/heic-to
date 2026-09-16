@@ -1,16 +1,17 @@
 #!/bin/bash
 # Build src/lib/libheif.js and src/lib/libheif-without-unsafe-eval.js from
 # source inside the emscripten/emsdk Docker image, then wrap them as ES modules.
+# Versions come from scripts/libheif-versions.env unless set in the environment:
 #
-#   LIBHEIF_VERSION=1.23.4 LIBDE265_VERSION=1.1.3 npm run build:libheif
+#   LIBHEIF_VERSION=1.23.5 npm run build:libheif
 set -euo pipefail
 
-LIBHEIF_VERSION="${LIBHEIF_VERSION:-1.23.4}"
-LIBDE265_VERSION="${LIBDE265_VERSION:-1.1.3}"
-# Match the Emscripten version libheif's own emscripten.yml CI builds with.
-EMSDK_VERSION="${EMSDK_VERSION:-3.1.61}"
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+for var in LIBHEIF_VERSION LIBDE265_VERSION EMSDK_VERSION; do
+	[ -n "${!var:-}" ] || declare "$var=$(sed -n "s/^$var=//p" "$ROOT/scripts/libheif-versions.env")"
+done
+
 WORK="$ROOT/tmp/libheif-build"
 
 rm -rf "$WORK/out"
