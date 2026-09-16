@@ -2,9 +2,8 @@ name: Check for libheif releases
 
 # Daily: when libheif or libde265 publishes a newer release, build it, and open
 # a pull request with the rebuilt files if the smoke test passes, or an issue
-# if the build fails. The PR is created with GITHUB_TOKEN, which doesn't trigger
-# pull_request workflows, so this dispatches Build libheif on the PR branch to
-# put the byte-match check on it.
+# if the build fails. The PR is created with GITHUB_TOKEN, so its Build libheif
+# pull_request run waits for a maintainer to approve it before it starts.
 #
 # Posts to Slack when it opens a PR or fails. Without a SLACK_WEBHOOK_URL
 # repository secret those steps are skipped.
@@ -17,7 +16,6 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
-  actions: write
 
 concurrency:
   group: update-libheif
@@ -87,14 +85,13 @@ jobs:
               echo "- Emscripten: $PREVIOUS_EMSDK → **$EMSDK** (follows libheif's emscripten.yml)"
             fi
             echo
-            echo "The rebuilt \`src/lib\` and \`dist\` passed the smoke test in [the run that opened this PR]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID). **Build libheif** has been dispatched on this branch to check the committed files match a clean build; its result shows on the head commit."
+            echo "The rebuilt \`src/lib\` and \`dist\` passed the smoke test in [the run that opened this PR]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID). Approve the pending **Build libheif** run on this PR to check the committed files match a clean build."
             echo
             echo 'Before merging, read the release notes for JS binding or `build-emscripten.sh` changes. After merging: bump the version, tag it, and update the dependency in Image Hopper.'
           } > pr-body.md
 
           url=$(gh pr create --base "$GITHUB_REF_NAME" --head "$BRANCH" --title "$TITLE" --body-file pr-body.md)
           echo "url=$url" >> "$GITHUB_OUTPUT"
-          gh workflow run build-libheif.yml --ref "$BRANCH"
 
       - name: Report build failure
         id: issue
@@ -122,7 +119,7 @@ jobs:
                   text: |
                     *heic-to: ${{ steps.check.outputs.title }}*
 
-                    libheif ${{ steps.check.outputs.previous_libheif }} → ${{ steps.check.outputs.libheif }}, libde265 ${{ steps.check.outputs.previous_libde265 }} → ${{ steps.check.outputs.libde265 }}. The smoke test passed; the byte-match check is running on the PR.
+                    libheif ${{ steps.check.outputs.previous_libheif }} → ${{ steps.check.outputs.libheif }}, libde265 ${{ steps.check.outputs.previous_libde265 }} → ${{ steps.check.outputs.libde265 }}. The smoke test passed; approve the pending Build libheif run on the PR.
 
                     <${{ steps.pr.outputs.url }}|Review the pull request>
 
