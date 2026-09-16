@@ -1,16 +1,17 @@
 // Decode libheif's own sample images with both src/lib builds and check the
 // CSP bundles stay free of dynamic code execution.
 //
-//   node scripts/smoke-test.cjs <libheif source checkout>
+//   node scripts/smoke-test.cjs [libheif source checkout]
+//
+// The checkout defaults to the one build-libheif.sh cloned for LIBHEIF_VERSION.
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const libheifSrc = process.argv[2];
-if (!libheifSrc) {
-	console.error('Usage: node scripts/smoke-test.cjs <libheif source checkout>');
-	process.exit(2);
-}
+const libheifVersion =
+	process.env.LIBHEIF_VERSION ||
+	fs.readFileSync(path.join(__dirname, 'libheif-versions.env'), 'utf8').match(/^LIBHEIF_VERSION=(.+)$/m)[1];
+const libheifSrc = process.argv[2] || path.join(ROOT, 'tmp/libheif-build', `libheif-${libheifVersion}`);
 
 const fixtures = [
 	['examples/example.heic', 1280, 854],

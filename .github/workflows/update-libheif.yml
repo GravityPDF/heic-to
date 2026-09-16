@@ -1,0 +1,100 @@
+name: Check for libheif releases
+
+# Daily: when libheif or libde265 publishes a newer release, build it, and open
+# a pull request with the rebuilt files if the smoke test passes, or an issue
+# if the build fails. The PR is created with GITHUB_TOKEN, which doesn't trigger
+# pull_request workflows, so this dispatches Build libheif on the PR branch to
+# put the byte-match check on it.
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: update-libheif
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check for new releases
+        id: check
+        run: bash scripts/check-libheif-releases.sh
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.check.outputs.update == 'true'
+        with:
+          node-version-file: .tool-versions
+
+      - name: Build and smoke test
+        id: build
+        if: steps.check.outputs.update == 'true'
+        run: |
+          npm ci
+          npm run build:libheif
+          npm run build
+          node scripts/smoke-test.cjs
+
+      - name: Open pull request
+        if: steps.check.outputs.update == 'true'
+        env:
+          BRANCH: ${{ steps.check.outputs.branch }}
+          TITLE: ${{ steps.check.outputs.title }}
+          LIBHEIF: ${{ steps.check.outputs.libheif }}
+          LIBDE265: ${{ steps.check.outputs.libde265 }}
+          EMSDK: ${{ steps.check.outputs.emsdk }}
+          PREVIOUS_LIBHEIF: ${{ steps.check.outputs.previous_libheif }}
+          PREVIOUS_LIBDE265: ${{ steps.check.outputs.previous_libde265 }}
+          PREVIOUS_EMSDK: ${{ steps.check.outputs.previous_emsdk }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$BRANCH"
+          git add scripts/libheif-versions.env README.md src/lib dist
+          git commit -m "$TITLE"
+          # Force: a branch left behind by a run that failed before opening its PR is ours to replace.
+          git push --force origin "$BRANCH"
+
+          release_line() {
+            if [ "$3" = "$4" ]; then
+              echo "- $1: $3 (unchanged)"
+            else
+              echo "- $1: $4 → **$3** ([release notes](https://github.com/$2/releases/tag/v$3))"
+            fi
+          }
+          {
+            echo 'Opened by the **Check for libheif releases** workflow.'
+            echo
+            release_line libheif strukturag/libheif "$LIBHEIF" "$PREVIOUS_LIBHEIF"
+            release_line libde265 strukturag/libde265 "$LIBDE265" "$PREVIOUS_LIBDE265"
+            if [ "$EMSDK" != "$PREVIOUS_EMSDK" ]; then
+              echo "- Emscripten: $PREVIOUS_EMSDK → **$EMSDK** (follows libheif's emscripten.yml)"
+            fi
+            echo
+            echo "The rebuilt \`src/lib\` and \`dist\` passed the smoke test in [the run that opened this PR]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID). **Build libheif** has been dispatched on this branch to check the committed files match a clean build; its result shows on the head commit."
+            echo
+            echo 'Before merging, read the release notes for JS binding or `build-emscripten.sh` changes. After merging: bump the version, tag it, and update the dependency in Image Hopper.'
+          } > pr-body.md
+
+          gh pr create --base "$GITHUB_REF_NAME" --head "$BRANCH" --title "$TITLE" --body-file pr-body.md
+          gh workflow run build-libheif.yml --ref "$BRANCH"
+
+      - name: Report build failure
+        if: failure() && steps.build.outcome == 'failure'
+        env:
+          FAILURE_TITLE: ${{ steps.check.outputs.failure_title }}
+        run: |
+          gh issue create --title "$FAILURE_TITLE" --body "The daily release check couldn't produce a working build: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          The check skips this version pair while this issue is open. Fix the build (upstream changes to \`build-emscripten.sh\` or the libde265 build are the usual cause), then close this issue so the next run retries."

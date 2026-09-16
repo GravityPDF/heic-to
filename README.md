@@ -144,10 +144,14 @@ This will open `http://127.0.0.1:8080/example/` for easy testing.
 
 `src/lib/libheif.js` and `src/lib/libheif-without-unsafe-eval.js` are built from source inside the [`emscripten/emsdk`](https://hub.docker.com/r/emscripten/emsdk) Docker image, so the only requirements are Docker and Node.
 
+The libheif, libde265 and Emscripten versions are pinned in `scripts/libheif-versions.env`.
+
 ```bash
-LIBHEIF_VERSION=1.23.4 LIBDE265_VERSION=1.1.3 npm run build:libheif
+npm run build:libheif   # override with e.g. LIBHEIF_VERSION=1.23.5 npm run build:libheif
 npm run build
-node scripts/smoke-test.cjs tmp/libheif-build/libheif-1.23.4
+node scripts/smoke-test.cjs
 ```
 
-The smoke test decodes libheif's own sample images with both builds and checks that the CSP bundles contain no `eval`/`new Function`. The same steps run in the **Build libheif** GitHub Actions workflow: pull requests fail if the committed `src/lib` and `dist` files don't match a clean build, and running the workflow by hand with new versions uploads the rebuilt files as an artifact.
+The smoke test decodes libheif's own sample images with both builds and checks that the CSP bundles contain no `eval`/`new Function`. The same steps run in the **Build libheif** GitHub Actions workflow, which fails if the committed `src/lib` and `dist` files don't match a clean build of the pinned versions. Running it by hand with version overrides uploads the rebuilt files as an artifact instead.
+
+The **Check for libheif releases** workflow runs daily. When libheif or libde265 publishes a newer release, it rebuilds with it and opens a pull request if the smoke test passes, or an issue if the build fails.
