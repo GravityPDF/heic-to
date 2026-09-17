@@ -2,9 +2,8 @@ name: Build libheif
 
 # Rebuilds libheif from the versions in scripts/libheif-versions.env and fails
 # if the committed src/lib and dist files don't match, so every release is
-# traceable to its sources. Pull requests run it, and so does the release check
-# (update-libheif.yml) on the branches it opens, since a PR created with
-# GITHUB_TOKEN doesn't trigger pull_request workflows.
+# traceable to its sources. Pull requests run it, including the ones the release
+# check (update-libheif.yml) opens; those runs wait for maintainer approval.
 #
 # Run it by hand with version overrides to produce files for a manual upgrade;
 # the match check is skipped then, and the rebuilt files are uploaded.
